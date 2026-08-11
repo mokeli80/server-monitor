@@ -14,9 +14,17 @@ from datetime import datetime
 
 OS_RELEASE_FILE = "/etc/os-release"
 PROC_STAT_FILE = "/proc/stat"
+PROC_MEMINFO_FILE = "/proc/meminfo"
 
 # How long we wait between the two /proc/stat samples.
 CPU_SAMPLE_SECONDS = 1.0
+
+GIB = 1024 ** 3
+
+
+def to_gb(num_bytes):
+    """Format a byte count as a human readable GB string."""
+    return "{:.1f} GB".format(num_bytes / GIB)
 
 
 def get_hostname():
@@ -93,13 +101,54 @@ def get_cpu_usage():
     return round(min(max(usage, 0.0), 100.0), 1)
 
 
+def _read_meminfo():
+    """Return /proc/meminfo as a dict of {key: bytes}."""
+    memory = {}
+    with open(PROC_MEMINFO_FILE, "r") as f:
+        for line in f:
+            key, _, rest = line.partition(":")
+            parts = rest.split()
+            if parts:
+                # /proc/meminfo reports kB, convert to bytes
+                memory[key] = int(parts[0]) * 1024
+    return memory
+
+
+def get_memory_usage():
+    """Return total / used / free RAM in bytes plus the usage percentage.
+
+    'Used' is MemTotal - MemAvailable. MemFree alone is misleading because
+    Linux keeps cache and buffers in RAM and frees them on demand.
+    """
+    memory = _read_meminfo()
+    total = memory.get("MemTotal", 0)
+    available = memory.get("MemAvailable", memory.get("MemFree", 0))
+    used = total - available
+    percent = round(used / total * 100.0, 1) if total else 0.0
+
+    return {
+        "total": total,
+        "used": used,
+        "free": available,
+        "percent": percent,
+    }
+
+
 def main():
+    memory = get_memory_usage()
+
     print("Hostname         : {}".format(get_hostname()))
     print("Current User     : {}".format(get_current_user()))
     print("Date             : {}".format(get_datetime()))
     print("Operating System : {}".format(get_operating_system()))
     print("Kernel           : {}".format(get_kernel_version()))
-    print("CPU Usage        : {}%".format(get_cpu_usage()))
+    print("CPU Usage        : {} %".format(get_cpu_usage()))
+    print("")
+    print("Memory Usage")
+    print("  Total          : {}".format(to_gb(memory["total"])))
+    print("  Used           : {}".format(to_gb(memory["used"])))
+    print("  Free           : {}".format(to_gb(memory["free"])))
+    print("  Usage          : {} %".format(memory["percent"]))
 
 
 if __name__ == "__main__":
