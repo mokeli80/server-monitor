@@ -16,6 +16,7 @@ from datetime import datetime
 OS_RELEASE_FILE = "/etc/os-release"
 PROC_STAT_FILE = "/proc/stat"
 PROC_MEMINFO_FILE = "/proc/meminfo"
+PROC_UPTIME_FILE = "/proc/uptime"
 
 # Filesystem we report on. "/" is what the ops team cares about.
 ROOT_FILESYSTEM = "/"
@@ -157,6 +158,43 @@ def get_disk_usage(path=ROOT_FILESYSTEM):
     }
 
 
+def get_ip_address():
+    """Return the primary IPv4 address of this machine.
+
+    A server can have several interfaces, so we ask the kernel which one it
+    would use to reach the outside world. UDP means no packet is actually
+    sent, the socket only gets a local address assigned.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError:
+        # No default route, e.g. an isolated host. Try the hostname instead.
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except socket.gaierror:
+            return "127.0.0.1"
+    finally:
+        sock.close()
+
+
+def get_uptime():
+    """Return how long the server has been running, e.g. '3 Days 5 Hours'."""
+    with open(PROC_UPTIME_FILE, "r") as f:
+        total_seconds = float(f.readline().split()[0])
+
+    days = int(total_seconds // 86400)
+    hours = int((total_seconds % 86400) // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+
+    if days:
+        return "{} Days {} Hours".format(days, hours)
+    if hours:
+        return "{} Hours {} Minutes".format(hours, minutes)
+    return "{} Minutes".format(minutes)
+
+
 def main():
     memory = get_memory_usage()
     disk = get_disk_usage()
@@ -179,6 +217,9 @@ def main():
     print("  Used           : {}".format(to_gb(disk["used"])))
     print("  Available      : {}".format(to_gb(disk["free"])))
     print("  Usage          : {} %".format(disk["percent"]))
+    print("")
+    print("IP Address       : {}".format(get_ip_address()))
+    print("Uptime           : {}".format(get_uptime()))
 
 
 if __name__ == "__main__":
