@@ -141,14 +141,14 @@ without any wrapper:
 
 Hostname         : DESKTOP-K3I4FS0
 Current User     : ubunto
-Date             : 2026-08-11 13:43
+Date             : 2026-08-11 13:48
 Operating System : Ubuntu 24.04.4 LTS
 Kernel           : 6.18.33.2-microsoft-standard-WSL2
-CPU Usage        : 13.8 %
+CPU Usage        : 3.8 %
 
 Memory Usage
   Total          : 7.7 GB
-  Used           : 2.9 GB
+  Used           : 2.8 GB
   Free           : 4.8 GB
   Usage          : 37.0 %
 
