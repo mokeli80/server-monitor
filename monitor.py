@@ -161,7 +161,9 @@ def get_disk_usage(path=ROOT_FILESYSTEM):
     # size, because a few percent of the device is reserved for root.
     # We do the same so the numbers match `df -h`.
     denominator = usage.used + usage.free
-    percent = round(usage.used / denominator * 100.0, 1) if denominator else 0.0
+    percent = 0.0
+    if denominator:
+        percent = round(usage.used / denominator * 100.0, 1)
 
     return {
         "filesystem": path,
@@ -277,6 +279,7 @@ def save_report(report, path=REPORT_FILE):
 
 
 def main():
+    """Collect the data, print the report and save it to disk."""
     info = collect_system_info()
     report = build_report(info)
 
