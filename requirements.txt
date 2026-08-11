@@ -1,0 +1,11 @@
+# No third-party packages are required.
+#
+# monitor.py is written against the Python 3 standard library only
+# (os, socket, platform, shutil, getpass, time, datetime), so it can be
+# copied to any Linux server that has Python 3.6+ and run straight away:
+#
+#     python3 monitor.py
+#
+# This file is kept in the repository on purpose: it documents that the
+# dependency list is empty, instead of leaving the next engineer guessing
+# whether something like psutil has to be installed first.
