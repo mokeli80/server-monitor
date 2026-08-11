@@ -2,7 +2,12 @@
 """
 monitor.py - Daily health report for Linux servers.
 
-Collects basic system information and prints it to the terminal.
+Collects system information, prints it to the terminal and saves it to
+reports/server_report.txt so the Operations team does not have to log in
+to every server and collect it by hand.
+
+Only the Python standard library is used, so the script can be dropped on
+any server with Python 3 installed - no pip install needed.
 """
 
 import getpass
@@ -25,6 +30,15 @@ ROOT_FILESYSTEM = "/"
 CPU_SAMPLE_SECONDS = 1.0
 
 GIB = 1024 ** 3
+
+# Paths are resolved from the script location and not from the current
+# working directory, so the report ends up in the right place also when
+# the script is started from cron or from another folder.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REPORTS_DIR = os.path.join(BASE_DIR, "reports")
+REPORT_FILE = os.path.join(REPORTS_DIR, "server_report.txt")
+
+REPORT_WIDTH = 50
 
 
 def to_gb(num_bytes):
@@ -195,31 +209,82 @@ def get_uptime():
     return "{} Minutes".format(minutes)
 
 
-def main():
-    memory = get_memory_usage()
-    disk = get_disk_usage()
+def collect_system_info():
+    """Run every collector once and return the result as a dictionary."""
+    return {
+        "hostname": get_hostname(),
+        "user": get_current_user(),
+        "date": get_datetime(),
+        "os": get_operating_system(),
+        "kernel": get_kernel_version(),
+        "cpu": get_cpu_usage(),
+        "memory": get_memory_usage(),
+        "disk": get_disk_usage(),
+        "ip": get_ip_address(),
+        "uptime": get_uptime(),
+    }
 
-    print("Hostname         : {}".format(get_hostname()))
-    print("Current User     : {}".format(get_current_user()))
-    print("Date             : {}".format(get_datetime()))
-    print("Operating System : {}".format(get_operating_system()))
-    print("Kernel           : {}".format(get_kernel_version()))
-    print("CPU Usage        : {} %".format(get_cpu_usage()))
-    print("")
-    print("Memory Usage")
-    print("  Total          : {}".format(to_gb(memory["total"])))
-    print("  Used           : {}".format(to_gb(memory["used"])))
-    print("  Free           : {}".format(to_gb(memory["free"])))
-    print("  Usage          : {} %".format(memory["percent"]))
-    print("")
-    print("Disk Usage")
-    print("  Filesystem     : {}".format(disk["filesystem"]))
-    print("  Used           : {}".format(to_gb(disk["used"])))
-    print("  Available      : {}".format(to_gb(disk["free"])))
-    print("  Usage          : {} %".format(disk["percent"]))
-    print("")
-    print("IP Address       : {}".format(get_ip_address()))
-    print("Uptime           : {}".format(get_uptime()))
+
+def build_report(info):
+    """Render the collected information as the plain text report."""
+    line = "=" * REPORT_WIDTH
+    memory = info["memory"]
+    disk = info["disk"]
+
+    rows = [
+        line,
+        # rstrip so we do not leave trailing spaces after the title
+        "SERVER HEALTH REPORT".center(REPORT_WIDTH).rstrip(),
+        line,
+        "",
+        "Hostname         : {}".format(info["hostname"]),
+        "Current User     : {}".format(info["user"]),
+        "Date             : {}".format(info["date"]),
+        "Operating System : {}".format(info["os"]),
+        "Kernel           : {}".format(info["kernel"]),
+        "CPU Usage        : {} %".format(info["cpu"]),
+        "",
+        "Memory Usage",
+        "  Total          : {}".format(to_gb(memory["total"])),
+        "  Used           : {}".format(to_gb(memory["used"])),
+        "  Free           : {}".format(to_gb(memory["free"])),
+        "  Usage          : {} %".format(memory["percent"]),
+        "",
+        "Disk Usage",
+        "  Filesystem     : {}".format(disk["filesystem"]),
+        "  Used           : {}".format(to_gb(disk["used"])),
+        "  Available      : {}".format(to_gb(disk["free"])),
+        "  Usage          : {} %".format(disk["percent"]),
+        "",
+        "IP Address       : {}".format(info["ip"]),
+        "Uptime           : {}".format(info["uptime"]),
+        "",
+        line,
+    ]
+    return "\n".join(rows) + "\n"
+
+
+def save_report(report, path=REPORT_FILE):
+    """Write the report to disk and return the path it was written to."""
+    # The reports folder is in git, but it can be missing if somebody only
+    # copied monitor.py to a server, so create it when needed.
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    with open(path, "w") as f:
+        f.write(report)
+
+    return path
+
+
+def main():
+    info = collect_system_info()
+    report = build_report(info)
+
+    # Same text on screen and in the file, no risk of the two drifting apart
+    print(report, end="")
+
+    path = save_report(report)
+    print("Report saved to: {}".format(path))
 
 
 if __name__ == "__main__":
