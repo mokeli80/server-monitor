@@ -8,6 +8,7 @@ Collects basic system information and prints it to the terminal.
 import getpass
 import os
 import platform
+import shutil
 import socket
 import time
 from datetime import datetime
@@ -15,6 +16,9 @@ from datetime import datetime
 OS_RELEASE_FILE = "/etc/os-release"
 PROC_STAT_FILE = "/proc/stat"
 PROC_MEMINFO_FILE = "/proc/meminfo"
+
+# Filesystem we report on. "/" is what the ops team cares about.
+ROOT_FILESYSTEM = "/"
 
 # How long we wait between the two /proc/stat samples.
 CPU_SAMPLE_SECONDS = 1.0
@@ -134,8 +138,28 @@ def get_memory_usage():
     }
 
 
+def get_disk_usage(path=ROOT_FILESYSTEM):
+    """Return used / free space and the usage percentage for a filesystem."""
+    usage = shutil.disk_usage(path)
+
+    # df calculates Use% against (used + available) and not against the raw
+    # size, because a few percent of the device is reserved for root.
+    # We do the same so the numbers match `df -h`.
+    denominator = usage.used + usage.free
+    percent = round(usage.used / denominator * 100.0, 1) if denominator else 0.0
+
+    return {
+        "filesystem": path,
+        "total": usage.total,
+        "used": usage.used,
+        "free": usage.free,
+        "percent": percent,
+    }
+
+
 def main():
     memory = get_memory_usage()
+    disk = get_disk_usage()
 
     print("Hostname         : {}".format(get_hostname()))
     print("Current User     : {}".format(get_current_user()))
@@ -149,6 +173,12 @@ def main():
     print("  Used           : {}".format(to_gb(memory["used"])))
     print("  Free           : {}".format(to_gb(memory["free"])))
     print("  Usage          : {} %".format(memory["percent"]))
+    print("")
+    print("Disk Usage")
+    print("  Filesystem     : {}".format(disk["filesystem"]))
+    print("  Used           : {}".format(to_gb(disk["used"])))
+    print("  Available      : {}".format(to_gb(disk["free"])))
+    print("  Usage          : {} %".format(disk["percent"]))
 
 
 if __name__ == "__main__":
